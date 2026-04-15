@@ -1,0 +1,108 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "$connections": {
+        "type": "Object",
+        "defaultValue": {}
+      }
+    },
+    "triggers": {
+      "When_a_HTTP_request_is_received": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "method": "PUT",
+          "relativePath": "/items/{id}",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "price": { "type": "number" }
+            },
+            "required": ["name", "price"]
+          }
+        }
+      }
+    },
+    "actions": {
+      "Validate_API_Key": {
+        "type": "Condition",
+        "expression": "@equals(triggerOutputs()?['headers']?['x-api-key'], 'mon-api-key-local-1234')",
+        "actions": {
+          "Validate_Input": {
+            "type": "Condition",
+            "expression": "@and(greater(triggerBody()?['price'], 0), not(empty(triggerBody()?['name'])))",
+            "actions": {
+              "Check_If_Exists": {
+                "type": "ApiConnection",
+                "inputs": {
+                  "host": {
+                    "connection": {
+                      "name": "@parameters('$connections')['azuretables']['connectionId']"
+                    }
+                  },
+                  "method": "get",
+                  "path": "/Tables/@{encodeURIComponent('items')}/PartitionKey='item'/RowKey='@{triggerOutputs()?['path']?['id']}'"
+                }
+              },
+              "Update_Item": {
+                "type": "ApiConnection",
+                "inputs": {
+                  "host": {
+                    "connection": {
+                      "name": "@parameters('$connections')['azuretables']['connectionId']"
+                    }
+                  },
+                  "method": "put",
+                  "path": "/Tables/@{encodeURIComponent('items')}/PartitionKey='item'/RowKey='@{triggerOutputs()?['path']?['id']}'",
+                  "body": {
+                    "PartitionKey": "item",
+                    "RowKey": "@{triggerOutputs()?['path']?['id']}",
+                    "name": "@{triggerBody()?['name']}",
+                    "price": "@{triggerBody()?['price']}",
+                    "updated_at": "@{utcNow('yyyy-MM-ddTHH:mm:ssZ')}"
+                  }
+                }
+              },
+              "Response_200": {
+                "type": "Response",
+                "inputs": {
+                  "statusCode": 200,
+                  "body": "@body('Update_Item')"
+                }
+              }
+            },
+            "else": {
+              "actions": {
+                "Response_400": {
+                  "type": "Response",
+                  "inputs": {
+                    "statusCode": 400,
+                    "body": {
+                      "error": "name requis, price > 0"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "else": {
+          "actions": {
+            "Response_401": {
+              "type": "Response",
+              "inputs": {
+                "statusCode": 401,
+                "body": {
+                  "error": "Non autorisé"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

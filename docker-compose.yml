@@ -1,0 +1,52 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  # Émulateur Azure Table Storage
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: azurite
+    ports:
+      - "10000:10000"  # Blob
+      - "10001:10001"  # Queue
+      - "10002:10002"  # Table
+    volumes:
+      - azurite-data:/data
+    command: "azurite-table --silent --location /data"
+    networks:
+      - logic-apps-network
+
+  # Simulateur Logic Apps (API Gateway + Workflows)
+  logic-apps-simulator:
+    build: .
+    container_name: logic-apps-simulator
+    ports:
+      - "3000:3000"
+    environment:
+      - STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OGLki1FjN1g+U3RvxG6ZcQ==;TableEndpoint=http://azurite:10002/devstoreaccount1;
+      - TABLE_NAME=items
+      - API_KEY=mon-api-key-local-1234
+    depends_on:
+      - azurite
+    networks:
+      - logic-apps-network
+
+  # API Gateway simulé (Nginx avec rate limiting)
+  api-gateway:
+    image: nginx:alpine
+    container_name: api-gateway
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - logic-apps-simulator
+    networks:
+      - logic-apps-network
+
+volumes:
+  azurite-data:
+
+networks:
+  logic-apps-network:
+    driver: bridge

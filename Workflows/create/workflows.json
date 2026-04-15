@@ -1,0 +1,112 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "$connections": {
+        "type": "Object",
+        "defaultValue": {}
+      }
+    },
+    "triggers": {
+      "When_a_HTTP_request_is_received": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "method": "POST",
+          "relativePath": "/items",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "price": { "type": "number" }
+            },
+            "required": ["name", "price"]
+          }
+        }
+      }
+    },
+    "actions": {
+      "Validate_API_Key": {
+        "type": "Condition",
+        "expression": "@equals(triggerOutputs()?['headers']?['x-api-key'], 'mon-api-key-local-1234')",
+        "actions": {
+          "Validate_Input": {
+            "type": "Condition",
+            "expression": "@and(greater(triggerBody()?['price'], 0), not(empty(triggerBody()?['name'])))",
+            "actions": {
+              "Generate_ID": {
+                "type": "Compose",
+                "inputs": "@{guid()}"
+              },
+              "Get_Current_Time": {
+                "type": "Compose",
+                "inputs": "@{utcNow('yyyy-MM-ddTHH:mm:ssZ')}"
+              },
+              "Create_Item_in_Table_Storage": {
+                "type": "ApiConnection",
+                "inputs": {
+                  "host": {
+                    "connection": {
+                      "name": "@parameters('$connections')['azuretables']['connectionId']"
+                    }
+                  },
+                  "method": "post",
+                  "path": "/Tables/@{encodeURIComponent('items')}/entities",
+                  "body": {
+                    "PartitionKey": "item",
+                    "RowKey": "@{outputs('Generate_ID')}",
+                    "id": "@{outputs('Generate_ID')}",
+                    "name": "@{triggerBody()?['name']}",
+                    "price": "@{triggerBody()?['price']}",
+                    "created_at": "@{outputs('Get_Current_Time')}",
+                    "updated_at": "@{outputs('Get_Current_Time')}"
+                  }
+                }
+              },
+              "Response_201": {
+                "type": "Response",
+                "inputs": {
+                  "statusCode": 201,
+                  "body": {
+                    "id": "@{outputs('Generate_ID')}",
+                    "name": "@{triggerBody()?['name']}",
+                    "price": "@{triggerBody()?['price']}",
+                    "created_at": "@{outputs('Get_Current_Time')}",
+                    "updated_at": "@{outputs('Get_Current_Time')}"
+                  }
+                }
+              }
+            },
+            "else": {
+              "actions": {
+                "Response_400_Invalid": {
+                  "type": "Response",
+                  "inputs": {
+                    "statusCode": 400,
+                    "body": {
+                      "error": "name requis et price > 0"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "else": {
+          "actions": {
+            "Response_401": {
+              "type": "Response",
+              "inputs": {
+                "statusCode": 401,
+                "body": {
+                  "error": "Non autorisé - x-api-key invalide"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

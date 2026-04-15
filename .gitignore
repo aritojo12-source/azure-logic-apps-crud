@@ -1,0 +1,4 @@
+"node_modules/" 
+"coverage/" 
+"azurite_data/" 
+".env" 

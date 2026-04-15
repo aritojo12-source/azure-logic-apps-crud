@@ -1,0 +1,61 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "$connections": {
+        "type": "Object",
+        "defaultValue": {}
+      }
+    },
+    "triggers": {
+      "When_a_HTTP_request_is_received": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "method": "DELETE",
+          "relativePath": "/items/{id}"
+        }
+      }
+    },
+    "actions": {
+      "Validate_API_Key": {
+        "type": "Condition",
+        "expression": "@equals(triggerOutputs()?['headers']?['x-api-key'], 'mon-api-key-local-1234')",
+        "actions": {
+          "Delete_Item": {
+            "type": "ApiConnection",
+            "inputs": {
+              "host": {
+                "connection": {
+                  "name": "@parameters('$connections')['azuretables']['connectionId']"
+                }
+              },
+              "method": "delete",
+              "path": "/Tables/@{encodeURIComponent('items')}/PartitionKey='item'/RowKey='@{triggerOutputs()?['path']?['id']}'"
+            }
+          },
+          "Response_204": {
+            "type": "Response",
+            "inputs": {
+              "statusCode": 204
+            }
+          }
+        },
+        "else": {
+          "actions": {
+            "Response_401": {
+              "type": "Response",
+              "inputs": {
+                "statusCode": 401,
+                "body": {
+                  "error": "Non autorisé"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

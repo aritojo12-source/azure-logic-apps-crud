@@ -1,0 +1,108 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "$connections": {
+        "type": "Object",
+        "defaultValue": {}
+      }
+    },
+    "triggers": {
+      "When_a_HTTP_request_is_received": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "method": "GET",
+          "relativePath": "/items/{id?}"
+        }
+      }
+    },
+    "actions": {
+      "Validate_API_Key": {
+        "type": "Condition",
+        "expression": "@equals(triggerOutputs()?['headers']?['x-api-key'], 'mon-api-key-local-1234')",
+        "actions": {
+          "Check_if_ID_provided": {
+            "type": "Condition",
+            "expression": "@not(empty(triggerOutputs()?['queries']?['id']))",
+            "actions": {
+              "Get_One_Item": {
+                "type": "ApiConnection",
+                "inputs": {
+                  "host": {
+                    "connection": {
+                      "name": "@parameters('$connections')['azuretables']['connectionId']"
+                    }
+                  },
+                  "method": "get",
+                  "path": "/Tables/@{encodeURIComponent('items')}/PartitionKey='item'/RowKey='@{triggerOutputs()?['queries']?['id']}'"
+                },
+                "runAfter": {},
+                "else": {
+                  "actions": {
+                    "Response_404": {
+                      "type": "Response",
+                      "inputs": {
+                        "statusCode": 404,
+                        "body": {
+                          "error": "Item non trouvé"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "Response_200_One": {
+                "type": "Response",
+                "inputs": {
+                  "statusCode": 200,
+                  "body": "@body('Get_One_Item')"
+                }
+              }
+            },
+            "else": {
+              "actions": {
+                "Get_All_Items": {
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azuretables']['connectionId']"
+                      }
+                    },
+                    "method": "get",
+                    "path": "/Tables/@{encodeURIComponent('items')}/entities",
+                    "queries": {
+                      "$filter": "PartitionKey eq 'item'"
+                    }
+                  }
+                },
+                "Response_200_All": {
+                  "type": "Response",
+                  "inputs": {
+                    "statusCode": 200,
+                    "body": "@body('Get_All_Items')"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "else": {
+          "actions": {
+            "Response_401": {
+              "type": "Response",
+              "inputs": {
+                "statusCode": 401,
+                "body": {
+                  "error": "Non autorisé"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
