@@ -2,3 +2,4 @@
 "coverage/" 
 "azurite_data/" 
 ".env" 
+"node_modules/" 
