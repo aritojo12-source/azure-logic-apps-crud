@@ -1,10 +1,8 @@
 const request = require('supertest');
+const express = require('express');
+const { v4: uuidv4 } = require('uuid');
 
-// Réutiliser la même fonction createApp
 const createApp = () => {
-  const express = require('express');
-  const { v4: uuidv4 } = require('uuid');
-  
   const app = express();
   app.use(express.json());
 
@@ -42,22 +40,6 @@ const createApp = () => {
     res.json(item);
   });
 
-  app.put('/api/items/:id', (req, res) => {
-    const index = fakeDB.findIndex(i => i.id === req.params.id);
-    if (index === -1) return res.status(404).json({ error: "Item non trouvé" });
-    
-    const { name, price } = req.body;
-    fakeDB[index] = { ...fakeDB[index], name, price, updated_at: new Date().toISOString() };
-    res.json(fakeDB[index]);
-  });
-
-  app.delete('/api/items/:id', (req, res) => {
-    const index = fakeDB.findIndex(i => i.id === req.params.id);
-    if (index === -1) return res.status(404).json({ error: "Item non trouvé" });
-    fakeDB.splice(index, 1);
-    res.status(204).send();
-  });
-
   return app;
 };
 
@@ -68,7 +50,6 @@ describe('Tests API CRUD - READ', () => {
   beforeEach(async () => {
     app = createApp();
     
-    // Créer un item pour les tests
     const response = await request(app)
       .post('/api/items')
       .set('x-api-key', 'mon-api-key-local-1234')
@@ -89,7 +70,6 @@ describe('Tests API CRUD - READ', () => {
     });
 
     test('Devrait retourner tous les items créés', async () => {
-      // Créer un deuxième item
       await request(app)
         .post('/api/items')
         .set('x-api-key', 'mon-api-key-local-1234')
@@ -103,7 +83,6 @@ describe('Tests API CRUD - READ', () => {
     });
 
     test('Devrait retourner un tableau vide si aucun item', async () => {
-      // Créer une nouvelle app avec DB vide
       const newApp = createApp();
       
       const response = await request(newApp)

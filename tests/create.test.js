@@ -42,57 +42,6 @@ const createApp = () => {
     res.status(201).json(newItem);
   });
 
-  // READ ALL
-  app.get('/api/items', (req, res) => {
-    res.json(fakeDB);
-  });
-
-  // READ ONE
-  app.get('/api/items/:id', (req, res) => {
-    const item = fakeDB.find(i => i.id === req.params.id);
-    if (!item) {
-      return res.status(404).json({ error: "Item non trouvé" });
-    }
-    res.json(item);
-  });
-
-  // UPDATE
-  app.put('/api/items/:id', (req, res) => {
-    const index = fakeDB.findIndex(i => i.id === req.params.id);
-    if (index === -1) {
-      return res.status(404).json({ error: "Item non trouvé" });
-    }
-    
-    const { name, price } = req.body;
-    
-    if (!name || name.trim() === '') {
-      return res.status(400).json({ error: "name est requis" });
-    }
-    if (price === undefined || typeof price !== 'number' || price <= 0) {
-      return res.status(400).json({ error: "price doit être un nombre > 0" });
-    }
-    
-    fakeDB[index] = {
-      ...fakeDB[index],
-      name: name.trim(),
-      price: price,
-      updated_at: new Date().toISOString()
-    };
-    
-    res.json(fakeDB[index]);
-  });
-
-  // DELETE
-  app.delete('/api/items/:id', (req, res) => {
-    const index = fakeDB.findIndex(i => i.id === req.params.id);
-    if (index === -1) {
-      return res.status(404).json({ error: "Item non trouvé" });
-    }
-    
-    fakeDB.splice(index, 1);
-    res.status(204).send();
-  });
-
   return app;
 };
 
